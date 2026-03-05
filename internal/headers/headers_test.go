@@ -42,6 +42,19 @@ func TestHeaders_Parse(t *testing.T) {
 	assert.Equal(t, 32, n)
 	assert.False(t, done)
 
+	// Test: Valid 2 samw Headers
+	headers = NewHeaders()
+	data = []byte("Set-Person: localhost:42069\r\nSet-Person: application/json\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	assert.Equal(t, 29, n)
+	assert.False(t, done)
+	n, done, err = headers.Parse(data[n:])
+	require.NoError(t, err)
+	assert.Equal(t, "localhost:42069,application/json", headers["set-person"])
+	assert.Equal(t, 30, n)
+	assert.False(t, done)
+
 	// Test: vaid Done
 	headers = NewHeaders()
 	data = []byte("\r\n")
