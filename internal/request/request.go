@@ -5,17 +5,21 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/ihyaulhaq/go-http/internal/headers"
 )
 
 type parseState int
 
 const (
 	stateInitialized parseState = iota
-	stateDone
+	requestStateDone
+	requestStateParsingHeaders
 )
 
 type Request struct {
 	RequestLine RequestLine
+	Headers     headers.Headers
 	state       parseState
 }
 
@@ -33,10 +37,11 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	readToIndex := 0
 
 	req := &Request{
-		state: stateInitialized,
+		state:   stateInitialized,
+		Headers: headers.Headers{},
 	}
 
-	for req.state != stateDone {
+	for req.state != requestStateDone {
 
 		// sizing buffer
 		if len(buf) == readToIndex {
@@ -48,7 +53,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		nRead, err := reader.Read(buf[readToIndex:])
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				req.state = stateDone
 				break
 			}
 			return nil, err
@@ -67,7 +71,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 	}
 
-	if req.state != stateDone {
+	if req.state != requestStateDone {
 		return nil, fmt.Errorf("incomplete request")
 	}
 
@@ -75,6 +79,22 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
+	totalbytes := 0
+	for r.state != requestStateDone {
+		n, err := r.ParseSingle(data[totalbytes:])
+		if err != nil {
+			return 0, err
+		}
+
+		if n == 0 {
+			break
+		}
+		totalbytes += n
+	}
+	return totalbytes, nil
+}
+
+func (r *Request) ParseSingle(data []byte) (int, error) {
 	switch r.state {
 	case stateInitialized:
 		reqLine, consumed, err := parseRequestLine(data)
@@ -86,16 +106,27 @@ func (r *Request) parse(data []byte) (int, error) {
 			return 0, nil
 		}
 
-		r.state = stateDone
+		r.state = requestStateParsingHeaders
 		r.RequestLine = reqLine
 
 		return consumed, nil
+	case requestStateParsingHeaders:
+		consumed, done, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
+		if done {
 
-	case stateDone:
+			r.state = requestStateDone
+		}
+		return consumed, nil
+
+	case requestStateDone:
 		return 0, fmt.Errorf("error: trying to read data in a done state")
 	default:
 		return 0, fmt.Errorf("error: unknown state")
 	}
+
 }
 
 func parseRequestLine(raw []byte) (RequestLine, int, error) {
