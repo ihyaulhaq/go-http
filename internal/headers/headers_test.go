@@ -14,7 +14,17 @@ func TestHeaders_Parse(t *testing.T) {
 	n, done, err := headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:42069", headers["Host"])
+	assert.Equal(t, "localhost:42069", headers["host"])
+	assert.Equal(t, 23, n)
+	assert.False(t, done)
+
+	// Test: Capital
+	headers = NewHeaders()
+	data = []byte("HOST: localhost:42069\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	require.NotNil(t, headers)
+	assert.Equal(t, "localhost:42069", headers["host"])
 	assert.Equal(t, 23, n)
 	assert.False(t, done)
 
@@ -27,8 +37,8 @@ func TestHeaders_Parse(t *testing.T) {
 	assert.False(t, done)
 	n, done, err = headers.Parse(data[n:])
 	require.NoError(t, err)
-	assert.Equal(t, "localhost:42069", headers["Host"])
-	assert.Equal(t, "application/json", headers["Content-Type"])
+	assert.Equal(t, "localhost:42069", headers["host"])
+	assert.Equal(t, "application/json", headers["content-type"])
 	assert.Equal(t, 32, n)
 	assert.False(t, done)
 
@@ -47,6 +57,15 @@ func TestHeaders_Parse(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 0, n)
 	assert.False(t, done)
+
+	// Test: Invalid Char
+	headers = NewHeaders()
+	data = []byte("H@ST: localhost:42069\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.Error(t, err)
+	assert.Equal(t, 0, n)
+	assert.False(t, done)
+
 }
 
 func NewHeaders() Headers {
