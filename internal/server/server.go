@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"sync/atomic"
 
@@ -22,13 +23,13 @@ type HandlerError struct {
 	Message    string
 }
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError
+type Handler func(w *response.Writer, req *request.Request) *HandlerError
 
 func Serve(port int, handler Handler) (*Server, error) {
 	addr := fmt.Sprintf(":%d", port)
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("can't listen to %s:  %w", addr, err)
+		return nil, err
 	}
 
 	s := &Server{
@@ -54,6 +55,8 @@ func (s *Server) listen() {
 			if s.closed.Load() {
 				return
 			}
+
+			log.Printf("Error accepting connection: %v", err)
 			continue
 		}
 		go s.handle(conn)
@@ -71,17 +74,19 @@ func (s *Server) handle(conn net.Conn) {
 
 	req, err := request.RequestFromReader(conn)
 	if err != nil {
-		WriteHandlerError(conn, &HandlerError{
+		hErr := &HandlerError{
 			StatusCode: response.StatusBadRequest,
 			Message:    err.Error(),
-		})
+		}
+
+		hErr.WriteHandlerError(conn)
 
 	}
 
 	var buf bytes.Buffer
 
 	if handlerErr := s.handler(&buf, req); handlerErr != nil {
-		WriteHandlerError(conn, handlerErr)
+		handlerErr.WriteHandlerError(conn)
 		return
 	}
 
@@ -96,7 +101,7 @@ func (s *Server) handle(conn net.Conn) {
 	conn.Write(body)
 }
 
-func WriteHandlerError(w io.Writer, h *HandlerError) {
+func (h *HandlerError) WriteHandlerError(w io.Writer) {
 	body := []byte(h.Message)
 	headers := response.GetDefaultHeaders(len(body))
 	response.WriteStatusLine(w, h.StatusCode)
