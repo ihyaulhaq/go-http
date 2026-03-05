@@ -5,7 +5,26 @@ import (
 	"strings"
 )
 
-type Headers map[string]string
+type Headers struct {
+	Data map[string]string
+}
+
+func NewHeaders() Headers {
+	return Headers{Data: make(map[string]string)}
+}
+
+func (h Headers) Get(key string) string {
+	key = strings.ToLower(key)
+	return h.Data[key]
+}
+
+func (h Headers) Set(key, value string) {
+	h.Data[key] = value
+}
+
+func (h Headers) All() map[string]string {
+	return h.Data
+}
 
 const crlf = "\r\n"
 
@@ -65,10 +84,10 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		return 0, false, fmt.Errorf("Invalid Headers: contain invalid char")
 	}
 
-	if val, ok := h[key]; ok {
-		h[key] = val + "," + value
+	if val, ok := h.Data[key]; ok {
+		h.Data[key] = val + "," + value
 	} else {
-		h[key] = value
+		h.Data[key] = value
 	}
 
 	return consumed, false, nil

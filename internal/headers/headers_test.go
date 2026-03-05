@@ -14,7 +14,7 @@ func TestHeaders_Parse(t *testing.T) {
 	n, done, err := headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:42069", headers["host"])
+	assert.Equal(t, "localhost:42069", headers.Get("host"))
 	assert.Equal(t, 23, n)
 	assert.False(t, done)
 
@@ -24,7 +24,7 @@ func TestHeaders_Parse(t *testing.T) {
 	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:42069", headers["host"])
+	assert.Equal(t, "localhost:42069", headers.Get("host"))
 	assert.Equal(t, 23, n)
 	assert.False(t, done)
 
@@ -37,8 +37,8 @@ func TestHeaders_Parse(t *testing.T) {
 	assert.False(t, done)
 	n, done, err = headers.Parse(data[n:])
 	require.NoError(t, err)
-	assert.Equal(t, "localhost:42069", headers["host"])
-	assert.Equal(t, "application/json", headers["content-type"])
+	assert.Equal(t, "localhost:42069", headers.Get("host"))
+	assert.Equal(t, "application/json", headers.Get("content-type"))
 	assert.Equal(t, 32, n)
 	assert.False(t, done)
 
@@ -51,7 +51,7 @@ func TestHeaders_Parse(t *testing.T) {
 	assert.False(t, done)
 	n, done, err = headers.Parse(data[n:])
 	require.NoError(t, err)
-	assert.Equal(t, "localhost:42069,application/json", headers["set-person"])
+	assert.Equal(t, "localhost:42069,application/json", headers.Get("set-person"))
 	assert.Equal(t, 30, n)
 	assert.False(t, done)
 
@@ -79,8 +79,4 @@ func TestHeaders_Parse(t *testing.T) {
 	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
-}
-
-func NewHeaders() Headers {
-	return make(Headers)
 }

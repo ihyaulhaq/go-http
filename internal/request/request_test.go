@@ -42,9 +42,9 @@ func TestHeadersStandard(t *testing.T) {
 	r, err := RequestFromReader(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, "localhost:42069", r.Headers["host"])
-	assert.Equal(t, "curl/7.81.0", r.Headers["user-agent"])
-	assert.Equal(t, "*/*", r.Headers["accept"])
+	assert.Equal(t, "localhost:42069", r.Headers.Get("host"))
+	assert.Equal(t, "curl/7.81.0", r.Headers.Get("user-agent"))
+	assert.Equal(t, "*/*", r.Headers.Get("accept"))
 }
 
 func TestHeadersEmpty(t *testing.T) {
@@ -55,7 +55,7 @@ func TestHeadersEmpty(t *testing.T) {
 	r, err := RequestFromReader(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Empty(t, r.Headers)
+	assert.Empty(t, r.Headers.All())
 }
 
 func TestHeadersMalformed(t *testing.T) {
@@ -76,7 +76,7 @@ func TestHeadersDuplicate(t *testing.T) {
 	r, err := RequestFromReader(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, "text/html,application/json", r.Headers["accept"])
+	assert.Equal(t, "text/html,application/json", r.Headers.Get("accept"))
 }
 
 func TestHeadersCaseInsensitive(t *testing.T) {
@@ -87,8 +87,8 @@ func TestHeadersCaseInsensitive(t *testing.T) {
 	r, err := RequestFromReader(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, "application/json", r.Headers["content-type"])
-	assert.Equal(t, "myvalue", r.Headers["x-custom-header"])
+	assert.Equal(t, "application/json", r.Headers.Get("content-type"))
+	assert.Equal(t, "myvalue", r.Headers.Get("x-custom-header"))
 }
 
 func TestHeadersMissingEnd(t *testing.T) {
@@ -99,6 +99,88 @@ func TestHeadersMissingEnd(t *testing.T) {
 	r, err := RequestFromReader(reader)
 	require.Error(t, err)
 	assert.Nil(t, r)
+}
+
+// +++++++++++++++++++++++++++++++++++ BODY+++++++++++++++++++++++++++++++++++++++
+// Test: Standard Body
+// A normal POST with a body and matching Content-Length
+func TestStandarBody(t *testing.T) {
+	reader := &chunkReader{
+		data: "POST /submit HTTP/1.1\r\n" +
+			"Host: localhost:42069\r\n" +
+			"Content-Length: 13\r\n" +
+			"\r\n" +
+			"hello world!\n",
+		numBytesPerRead: 3,
+	}
+	r, err := RequestFromReader(reader)
+	require.NoError(t, err)
+	require.NotNil(t, r)
+	assert.Equal(t, "hello world!\n", string(r.Body))
+}
+
+// Test: Empty Body, 0 reported content length
+// Content-Length is explicitly 0 — body should be empty but not an error
+func TestBodyEmptyWithZeroContentLength(t *testing.T) {
+	reader := &chunkReader{
+		data: "POST /submit HTTP/1.1\r\n" +
+			"Host: localhost:42069\r\n" +
+			"Content-Length: 0\r\n" +
+			"\r\n",
+		numBytesPerRead: 3,
+	}
+	r, err := RequestFromReader(reader)
+	require.NoError(t, err)
+	require.NotNil(t, r)
+	assert.Empty(t, r.Body)
+}
+
+// Test: Empty Body, no reported content length
+// No Content-Length header at all — body should be nil/empty and not an error
+func TestBodyEmptyNoContentLength(t *testing.T) {
+	reader := &chunkReader{
+		data: "GET / HTTP/1.1\r\n" +
+			"Host: localhost:42069\r\n" +
+			"\r\n",
+		numBytesPerRead: 3,
+	}
+	r, err := RequestFromReader(reader)
+	require.NoError(t, err)
+	require.NotNil(t, r)
+	assert.Empty(t, r.Body)
+}
+
+// Test: Body shorter than reported content length
+// The actual body is fewer bytes than Content-Length claims — should error
+func TestBodyShorterThanContentLength(t *testing.T) {
+	// Test: Body shorter than reported content length
+	reader := &chunkReader{
+		data: "POST /submit HTTP/1.1\r\n" +
+			"Host: localhost:42069\r\n" +
+			"Content-Length: 20\r\n" +
+			"\r\n" +
+			"partial content",
+		numBytesPerRead: 3,
+	}
+	_, err := RequestFromReader(reader)
+	require.Error(t, err)
+}
+
+// Test: No Content-Length but body exists in the stream
+// We assume Content-Length is required to read a body, so the trailing
+// bytes are silently ignored and the request is still valid
+func TestBodyNoContentLengthWithBody(t *testing.T) {
+	reader := &chunkReader{
+		data: "POST /submit HTTP/1.1\r\n" +
+			"Host: localhost:42069\r\n" +
+			"\r\n" +
+			"this body should be ignored",
+		numBytesPerRead: 3,
+	}
+	r, err := RequestFromReader(reader)
+	require.NoError(t, err)
+	require.NotNil(t, r)
+	assert.Empty(t, r.Body)
 }
 
 type chunkReader struct {

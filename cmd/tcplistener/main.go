@@ -36,6 +36,14 @@ func main() {
 		fmt.Printf("- Method: %s\n", req.RequestLine.Method)
 		fmt.Printf("- Target: %s\n", req.RequestLine.RequestTarget)
 		fmt.Printf("- Version: %s\n", req.RequestLine.HttpVersion)
+
+		fmt.Println("Headers: ")
+		for key, value := range req.Headers.All() {
+			fmt.Printf("- %s: %s \n", key, value)
+		}
+
+		fmt.Println("Body: ")
+		fmt.Printf("%s\n", string(req.Body))
 		fmt.Println("Connection to ", conn.RemoteAddr(), "closed")
 		fmt.Println("=====================================")
 	}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/ihyaulhaq/go-http/internal/headers"
@@ -15,11 +16,13 @@ const (
 	stateInitialized parseState = iota
 	requestStateDone
 	requestStateParsingHeaders
+	requestStateParsingBody
 )
 
 type Request struct {
 	RequestLine RequestLine
 	Headers     headers.Headers
+	Body        []byte
 	state       parseState
 }
 
@@ -38,7 +41,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 	req := &Request{
 		state:   stateInitialized,
-		Headers: headers.Headers{},
+		Headers: headers.NewHeaders(),
 	}
 
 	for req.state != requestStateDone {
@@ -116,10 +119,34 @@ func (r *Request) ParseSingle(data []byte) (int, error) {
 			return 0, err
 		}
 		if done {
-
-			r.state = requestStateDone
+			r.state = requestStateParsingBody
 		}
 		return consumed, nil
+
+	case requestStateParsingBody:
+		contentLength := r.Headers.Get("Content-Length")
+		// content-length not present
+		if contentLength == "" {
+			r.Body = []byte{}
+			r.state = requestStateDone
+			return 0, nil
+		}
+
+		contLen, err := strconv.Atoi(contentLength)
+		if err != nil {
+			return 0, fmt.Errorf("invalid Content-Length")
+		}
+
+		r.Body = append(r.Body, data...)
+
+		if len(r.Body) > contLen {
+			return 0, fmt.Errorf("body exceeds content length")
+		}
+		if len(r.Body) == contLen {
+			r.state = requestStateDone
+		}
+
+		return len(data), nil
 
 	case requestStateDone:
 		return 0, fmt.Errorf("error: trying to read data in a done state")
