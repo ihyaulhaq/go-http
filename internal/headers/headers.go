@@ -22,6 +22,10 @@ func (h Headers) Set(key, value string) {
 	h.Data[key] = value
 }
 
+func (h Headers) Delete(key string) {
+	delete(h.Data, key)
+}
+
 func (h Headers) All() map[string]string {
 	return h.Data
 }

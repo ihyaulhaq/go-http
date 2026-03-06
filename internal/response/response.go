@@ -102,3 +102,56 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	w.state = WriteDone
 	return n, nil
 }
+
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	if w.state != WriteBody {
+		return 0, fmt.Errorf("WriteBody called out of order")
+	}
+
+	_, err := w.respose.Write([]byte(fmt.Sprintf("%x\r\n", len(p))))
+	if err != nil {
+		return 0, nil
+	}
+
+	n, err := w.respose.Write(p)
+	if err != nil {
+		return n, err
+	}
+
+	_, err = w.respose.Write([]byte("\r\n"))
+	return n, err
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	if w.state != WriteBody {
+		return 0, fmt.Errorf("WriteBody called out of order")
+	}
+
+	_, err := w.respose.Write([]byte("0\r\n"))
+	if err != nil {
+		return 0, nil
+	}
+
+	return 0, nil
+}
+
+func (w *Writer) WriteTrailers(h headers.Headers) error {
+	if w.state != WriteBody {
+		return fmt.Errorf("WriteBody called out of order")
+	}
+
+	for key, value := range h.Data {
+		_, err := fmt.Fprintf(w.respose, "%s: %s\r\n", key, value)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err := fmt.Fprintf(w.respose, "\r\n")
+	if err != nil {
+		return err
+	}
+
+	w.state = WriteDone
+	return nil
+}

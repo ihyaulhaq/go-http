@@ -1,9 +1,7 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"sync/atomic"
@@ -45,7 +43,6 @@ func Serve(port int, handler Handler) (*Server, error) {
 func (s *Server) Close() error {
 	s.closed.Store(true)
 	return s.listener.Close()
-
 }
 
 func (s *Server) listen() {
@@ -60,7 +57,6 @@ func (s *Server) listen() {
 			continue
 		}
 		go s.handle(conn)
-
 	}
 }
 
@@ -80,31 +76,34 @@ func (s *Server) handle(conn net.Conn) {
 		}
 
 		hErr.WriteHandlerError(conn)
-
+		return
 	}
 
-	var buf bytes.Buffer
+	// var buf bytes.Buffer
 
-	if handlerErr := s.handler(&buf, req); handlerErr != nil {
+	w := response.NewWriter(conn)
+	if handlerErr := s.handler(w, req); handlerErr != nil {
 		handlerErr.WriteHandlerError(conn)
 		return
 	}
 
-	body := buf.Bytes()
-	h := response.GetDefaultHeaders(len(body))
-	if err := response.WriteStatusLine(conn, response.StatusOk); err != nil {
-		return
-	}
-	if err := response.WriteHeaders(conn, h); err != nil {
-		return
-	}
-	conn.Write(body)
+	//
+	// body := buf.Bytes()
+	// h := response.GetDefaultHeaders(len(body))
+	// if err := response.WriteStatusLine(conn, response.StatusOk); err != nil {
+	// 	return
+	// }
+	// if err := response.WriteHeaders(conn, h); err != nil {
+	// 	return
+	// }
+	// conn.Write(body)
 }
 
-func (h *HandlerError) WriteHandlerError(w io.Writer) {
+func (h *HandlerError) WriteHandlerError(conn net.Conn) {
 	body := []byte(h.Message)
 	headers := response.GetDefaultHeaders(len(body))
-	response.WriteStatusLine(w, h.StatusCode)
-	response.WriteHeaders(w, headers)
-	w.Write(body)
+	w := response.NewWriter(conn)
+	w.WriteStatusLine(h.StatusCode)
+	w.WriteHeaders(headers)
+	w.WriteBody(body)
 }
