@@ -23,6 +23,10 @@ type HandlerError struct {
 
 type Handler func(w *response.Writer, req *request.Request) *HandlerError
 
+type Router struct {
+	routes map[string]Handler
+}
+
 func Serve(port int, handler Handler) (*Server, error) {
 	addr := fmt.Sprintf(":%d", port)
 	l, err := net.Listen("tcp", addr)
@@ -79,24 +83,11 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 
-	// var buf bytes.Buffer
-
 	w := response.NewWriter(conn)
 	if handlerErr := s.handler(w, req); handlerErr != nil {
 		handlerErr.WriteHandlerError(conn)
 		return
 	}
-
-	//
-	// body := buf.Bytes()
-	// h := response.GetDefaultHeaders(len(body))
-	// if err := response.WriteStatusLine(conn, response.StatusOk); err != nil {
-	// 	return
-	// }
-	// if err := response.WriteHeaders(conn, h); err != nil {
-	// 	return
-	// }
-	// conn.Write(body)
 }
 
 func (h *HandlerError) WriteHandlerError(conn net.Conn) {
@@ -106,4 +97,32 @@ func (h *HandlerError) WriteHandlerError(conn net.Conn) {
 	w.WriteStatusLine(h.StatusCode)
 	w.WriteHeaders(headers)
 	w.WriteBody(body)
+}
+
+func NewRouter() *Router {
+	return &Router{
+		routes: make(map[string]Handler),
+	}
+}
+
+func (r *Router) Handle(method, path string, handler Handler) {
+	key := method + " " + path
+	r.routes[key] = handler
+}
+
+func (r *Router) GET(path string, h Handler)    { r.Handle("GET", path, h) }
+func (r *Router) POST(path string, h Handler)   { r.Handle("POST", path, h) }
+func (r *Router) DELETE(path string, h Handler) { r.Handle("DELETE", path, h) }
+
+func (r *Router) ServeHTTP(w *response.Writer, req *request.Request) *HandlerError {
+	key := req.RequestLine.Method + " " + req.RequestLine.RequestTarget
+
+	handler, ok := r.routes[key]
+	if !ok {
+		return &HandlerError{
+			StatusCode: response.StatusNotFound,
+			Message:    "404 Not Found",
+		}
+	}
+	return handler(w, req)
 }

@@ -14,6 +14,7 @@ const (
 	StatusOk                  StatusCode = 200
 	StatusBadRequest          StatusCode = 400
 	StatusInternalServerError StatusCode = 500
+	StatusNotFound            StatusCode = 404
 )
 
 type writerState int

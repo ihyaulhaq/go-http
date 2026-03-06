@@ -20,7 +20,12 @@ import (
 const PORT = 42069
 
 func main() {
-	server, err := server.Serve(PORT, handler)
+	router := server.NewRouter()
+
+	router.GET("/video", youtubeHandler)
+	router.GET("/", defaultHandler)
+
+	server, err := server.Serve(PORT, router.ServeHTTP)
 	if err != nil {
 		log.Fatalf("Error startting server : %v", err)
 	}
@@ -35,13 +40,13 @@ func main() {
 
 func handler(res *response.Writer, req *request.Request) *server.HandlerError {
 
-	if strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin") {
+	url := req.RequestLine.RequestTarget
 
+	if strings.HasPrefix(url, "/httpbin") {
 		return proxyhandler(res, req)
-
 	}
 
-	switch req.RequestLine.RequestTarget {
+	switch url {
 	case "/yourproblem":
 		body := []byte(`<html>
 		<head>
@@ -94,6 +99,25 @@ func handler(res *response.Writer, req *request.Request) *server.HandlerError {
 		return nil
 
 	}
+
+}
+
+func youtubeHandler(res *response.Writer, req *request.Request) *server.HandlerError {
+
+	vid, err := os.ReadFile("assets/vim.mp4")
+	if err != nil {
+		return &server.HandlerError{
+			StatusCode: response.StatusInternalServerError,
+			Message:    "Can't open the file:" + err.Error(),
+		}
+	}
+
+	h := response.GetDefaultHeaders(len(vid))
+	h.Set("Content-Type", "video/mp4")
+	res.WriteStatusLine(response.StatusOk)
+	res.WriteHeaders(h)
+	res.WriteBody(vid)
+	return nil
 
 }
 
@@ -150,5 +174,23 @@ func proxyhandler(res *response.Writer, req *request.Request) *server.HandlerErr
 
 	res.WriteChunkedBodyDone()
 	res.WriteTrailers(t)
+	return nil
+}
+
+func defaultHandler(w *response.Writer, r *request.Request) *server.HandlerError {
+	body := []byte(`<html>
+		<head>
+			<title>200 OK</title>
+		</head>
+		<body>
+			<h1>Success!</h1>
+			<p>Your request was an absolute banger.</p>
+		</body>
+	</html>`)
+	h := response.GetDefaultHeaders(len(body))
+	h.Set("Content-Type", "text/html")
+	w.WriteStatusLine(response.StatusOk)
+	w.WriteHeaders(h)
+	w.WriteBody(body)
 	return nil
 }
