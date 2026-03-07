@@ -65,28 +65,30 @@ func (s *Server) listen() {
 }
 
 func (s *Server) handle(conn net.Conn) {
-	defer func() {
-		if tc, ok := conn.(*net.TCPConn); ok {
-			tc.CloseWrite()
+	defer conn.Close()
+
+	for {
+
+		req, err := request.RequestFromReader(conn)
+		if err != nil {
+			hErr := &HandlerError{
+				StatusCode: response.StatusBadRequest,
+				Message:    err.Error(),
+			}
+
+			hErr.WriteHandlerError(conn)
+			return
 		}
-		conn.Close()
-	}()
 
-	req, err := request.RequestFromReader(conn)
-	if err != nil {
-		hErr := &HandlerError{
-			StatusCode: response.StatusBadRequest,
-			Message:    err.Error(),
+		w := response.NewWriter(conn)
+		if handlerErr := s.handler(w, req); handlerErr != nil {
+			handlerErr.WriteHandlerError(conn)
+			return
 		}
 
-		hErr.WriteHandlerError(conn)
-		return
-	}
-
-	w := response.NewWriter(conn)
-	if handlerErr := s.handler(w, req); handlerErr != nil {
-		handlerErr.WriteHandlerError(conn)
-		return
+		if req.Headers.Get("Connection") == "close" {
+			break
+		}
 	}
 }
 
