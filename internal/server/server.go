@@ -1,7 +1,9 @@
 package server
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"sync/atomic"
@@ -70,19 +72,23 @@ func (s *Server) handle(conn net.Conn) {
 	for {
 
 		req, err := request.RequestFromReader(conn)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
 		if err != nil {
 			hErr := &HandlerError{
 				StatusCode: response.StatusBadRequest,
 				Message:    err.Error(),
 			}
 
-			hErr.WriteHandlerError(conn)
+			hErr.Write(conn)
 			return
 		}
 
 		w := response.NewWriter(conn)
 		if handlerErr := s.handler(w, req); handlerErr != nil {
-			handlerErr.WriteHandlerError(conn)
+			handlerErr.Write(conn)
 			return
 		}
 
@@ -92,7 +98,7 @@ func (s *Server) handle(conn net.Conn) {
 	}
 }
 
-func (h *HandlerError) WriteHandlerError(conn net.Conn) {
+func (h *HandlerError) Write(conn net.Conn) {
 	body := []byte(h.Message)
 	headers := response.GetDefaultHeaders(len(body))
 	w := response.NewWriter(conn)
